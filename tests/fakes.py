@@ -80,6 +80,7 @@ class FakeHypervisor:
         self.memory_gib = 256.0
         self.start_error: Exception | None = None
         self.destroy_error = False
+        self.wipe_error = False
         self.running_error = False
         self.domains: dict[str, float] = {}  # name -> start time
         self.events: list[tuple] = []
@@ -120,6 +121,8 @@ class FakeHypervisor:
 
     def wipe(self, slot_dir: Path):
         self.events.append(("wipe", slot_dir.name))
+        if self.wipe_error:
+            raise OSError("rmtree: Device or resource busy")
 
     def free_gib(self, path):
         return self.free

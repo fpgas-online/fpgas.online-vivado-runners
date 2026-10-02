@@ -243,3 +243,45 @@ def test_losing_libvirt_while_waiting_is_a_failure_and_still_cleans_up(env):
     out = env.make().run_once()
     assert out.reason == "hypervisor-error"
     assert [e[0] for e in env.hv.events] == ["prepare", "start", "destroy", "wipe"]
+
+
+def test_the_runner_is_revoked_even_when_the_vm_cannot_be_destroyed(env):
+    env.hv.destroy_error = True
+    env.hv.runs_job = False  # the runner stays registered, so the slot must delete it
+    env.make().run_once()
+    assert env.gh.deleted == [100]
+
+
+def test_a_destroy_that_fails_with_any_error_keeps_the_disks(env):
+    def broken(name):
+        raise OSError("virsh: not found")
+
+    env.hv.destroy = broken
+    out = env.make().run_once()
+    assert out.reason == "destroy-error"
+    assert not any(e[0] == "wipe" for e in env.hv.events)
+
+
+def test_a_wipe_failure_still_revokes_the_runner_and_halts_the_slot(env):
+    env.hv.wipe_error = True
+    assert env.make().run_forever() == "halted"
+    assert env.gh.runners == {}
+    status = json.loads((env.cfg.status_dir / "slot-0.json").read_text())
+    assert (status["state"], status["last_reason"]) == ("halted", "wipe-error")
+
+
+def test_an_unexpected_error_halts_the_slot_with_a_status(env):
+    def broken(path):
+        raise OSError("disk gone")
+
+    env.hv.free_gib = broken
+    assert env.make().run_forever() == "halted"
+    status = json.loads((env.cfg.status_dir / "slot-0.json").read_text())
+    assert (status["state"], status["last_reason"]) == ("halted", "internal-error")
+
+
+def test_three_hypervisor_errors_halt_the_slot(env):
+    outcomes = iter(["hypervisor-error"] * 3)
+    s = env.make()
+    s.run_once = lambda: slot_mod.Outcome(next(outcomes), 1.0, "r", "b", "v")
+    assert s.run_forever() == "halted"

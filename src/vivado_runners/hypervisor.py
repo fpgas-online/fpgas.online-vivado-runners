@@ -26,8 +26,11 @@ class HypervisorError(RuntimeError):
     """virsh failed for a reason other than the domain being gone."""
 
 
+COMMAND_TIMEOUT = 300  # seconds; no virsh, qemu-img or xorriso call should come near this
+
+
 def _run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, check=check, capture_output=True, text=True)
+    return subprocess.run(cmd, check=check, capture_output=True, text=True, timeout=COMMAND_TIMEOUT)
 
 
 def _gone(result: subprocess.CompletedProcess) -> bool:

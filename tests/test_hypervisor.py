@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from vivado_runners import hypervisor as hypervisor_module
 from vivado_runners.hypervisor import HypervisorError, SlotDisks, VirshHypervisor
 
 
@@ -159,3 +160,15 @@ def test_host_addresses_leave_out_loopback_and_the_runner_bridge():
     sh = Shell({"addr show": json.dumps(interfaces)})
     assert VirshHypervisor(sh).host_addresses(exclude=("vrbr0",)) == ["203.0.113.7", "203.0.113.8", "198.51.100.1"]
     assert sh.cmds == [["ip", "-j", "-4", "addr", "show"]]
+
+
+def test_host_commands_have_a_timeout(monkeypatch):
+    seen = {}
+
+    def fake_run(cmd, **kwargs):
+        seen.update(kwargs)
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(hypervisor_module.subprocess, "run", fake_run)
+    hypervisor_module._run(["virsh", "list"])
+    assert seen["timeout"] == hypervisor_module.COMMAND_TIMEOUT

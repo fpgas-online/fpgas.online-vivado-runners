@@ -1,0 +1,16 @@
+[runner]
+version = "2.337.0"
+sha256 = "70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613"
+
+[uv]
+version = "0.12.10"
+sha256 = "173d95a0c32d18c896c46ba6fafbf3cf9c14ab74b033f81b76c883ef492a976b"
+
+[python]
+version = "3.12"
+
+[debian]
+# The checksum is read from SHA512SUMS beside the image at build time and
+# recorded in the image manifest.
+base_url = "https://cloud.debian.org/images/cloud/trixie/latest"
+image = "debian-13-generic-amd64.qcow2"

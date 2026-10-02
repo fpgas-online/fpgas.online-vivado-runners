@@ -1,0 +1,73 @@
+#!/usr/bin/python3
+"""Run one GitHub Actions job, then let systemd power the machine off.
+
+Disks are found by the serial the controller gives them:
+  vr-vivado   squashfs of the Vivado install, mounted read-only at /opt/Xilinx
+  vr-scratch  empty disk for the job's work directory
+  vr-seed     ISO with `jitconfig` (single-use runner registration) and `proxy`
+"""
+
+import json
+import pathlib
+import subprocess
+import sys
+
+RUNNER = pathlib.Path("/home/runner/actions-runner")
+WORK = RUNNER / "_work"
+SEED = pathlib.Path("/run/vr-seed")
+
+
+def disk(serial: str) -> str:
+    return f"/dev/disk/by-id/virtio-{serial}"
+
+
+def sh(*cmd: str) -> None:
+    subprocess.run(cmd, check=True)
+
+
+def main() -> int:
+    manifest_text = pathlib.Path("/etc/vivado-runner-image.json").read_text()
+    print(manifest_text, flush=True)
+    manifest = json.loads(manifest_text)
+
+    sh("mount", "-t", "squashfs", "-o", "ro,nodev,nosuid", disk("vr-vivado"), "/opt/Xilinx")
+
+    sh("mkfs.ext4", "-q", "-F", "-E", "lazy_itable_init=1,lazy_journal_init=1", disk("vr-scratch"))
+    WORK.mkdir(exist_ok=True)
+    sh("mount", "-o", "nodev,nosuid", disk("vr-scratch"), str(WORK))
+    sh("chown", "runner:runner", str(WORK))
+
+    SEED.mkdir(exist_ok=True)
+    sh("mount", "-o", "ro", disk("vr-seed"), str(SEED))
+    jitconfig = (SEED / "jitconfig").read_text().strip()
+    proxy = (SEED / "proxy").read_text().strip()
+    sh("umount", str(SEED))
+
+    env = {
+        "HOME": "/home/runner",
+        "USER": "runner",
+        "LOGNAME": "runner",
+        "PATH": "/home/runner/.local/bin:/usr/local/bin:/usr/bin:/bin",
+        "LANG": "en_US.UTF-8",
+        "https_proxy": proxy,
+        "http_proxy": proxy,
+        "HTTPS_PROXY": proxy,
+        "HTTP_PROXY": proxy,
+        "UV_LINK_MODE": "copy",
+        # The uv cache holds wheels for exactly this Python; never pick or fetch another.
+        "UV_PYTHON": manifest["python_version"],
+        "UV_PYTHON_DOWNLOADS": "never",
+    }
+    result = subprocess.run(
+        [str(RUNNER / "run.sh"), "--jitconfig", jitconfig],
+        cwd=RUNNER,
+        env=env,
+        user="runner",
+        group="runner",
+        extra_groups=[],
+    )
+    return result.returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main())

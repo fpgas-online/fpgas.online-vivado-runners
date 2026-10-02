@@ -2,16 +2,19 @@ import json
 import subprocess
 from pathlib import Path
 
-from vivado_runners.hypervisor import SlotDisks, VirshHypervisor
+import pytest
+
+from vivado_runners.hypervisor import HypervisorError, SlotDisks, VirshHypervisor
 
 
 class Shell:
     """Records commands; answers from `outputs`, keyed by the first two words."""
 
-    def __init__(self, outputs=None, fail=()):
+    def __init__(self, outputs=None, fail=(), stderr: str = ""):
         self.cmds = []
         self.outputs = outputs or {}
         self.fail = set(fail)
+        self.stderr = stderr
 
     def __call__(self, cmd, check=True):
         self.cmds.append(cmd)
@@ -20,7 +23,7 @@ class Shell:
         if code and check:
             raise subprocess.CalledProcessError(code, cmd)
         out = next((v for k, v in self.outputs.items() if k in " ".join(cmd)), "")
-        return subprocess.CompletedProcess(cmd, code, stdout=out, stderr="")
+        return subprocess.CompletedProcess(cmd, code, stdout=out, stderr=self.stderr if code else "")
 
 
 def test_list_domains_filters_by_prefix():
@@ -78,13 +81,29 @@ def test_is_running_reads_domstate_and_treats_a_missing_domain_as_stopped():
     assert VirshHypervisor(Shell({"domstate": "running\n"})).is_running("vr-h-0") is True
     assert VirshHypervisor(Shell({"domstate": "paused\n"})).is_running("vr-h-0") is True
     assert VirshHypervisor(Shell({"domstate": "shut off\n"})).is_running("vr-h-0") is False
-    assert VirshHypervisor(Shell(fail=["domstate"])).is_running("vr-h-0") is False
+    stderr_msg = "error: failed to get domain 'vr-h-0'\nerror: Domain not found: no domain with matching name 'vr-h-0'"
+    assert VirshHypervisor(Shell(fail=["domstate"], stderr=stderr_msg)).is_running("vr-h-0") is False
 
 
 def test_destroy_ignores_a_domain_that_is_already_gone():
-    sh = Shell(fail=["destroy"])
+    stderr_msg = (
+        "error: Failed to destroy domain 'vr-h-0'\nerror: Requested operation is not valid: domain is not running"
+    )
+    sh = Shell(fail=["destroy"], stderr=stderr_msg)
     VirshHypervisor(sh).destroy("vr-h-0")
     assert sh.cmds == [["virsh", "-c", "qemu:///system", "destroy", "vr-h-0"]]
+
+
+def test_is_running_raises_when_libvirt_cannot_be_asked():
+    with pytest.raises(HypervisorError, match="failed to connect"):
+        VirshHypervisor(Shell(fail=["domstate"], stderr="error: failed to connect to the hypervisor")).is_running(
+            "vr-h-0"
+        )
+
+
+def test_destroy_raises_when_libvirt_cannot_be_asked():
+    with pytest.raises(HypervisorError, match="failed to connect"):
+        VirshHypervisor(Shell(fail=["destroy"], stderr="error: failed to connect to the hypervisor")).destroy("vr-h-0")
 
 
 def test_wipe_removes_the_directory_and_tolerates_its_absence(tmp_path):

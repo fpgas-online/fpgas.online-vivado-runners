@@ -18,9 +18,21 @@ from pathlib import Path
 Run = Callable[..., subprocess.CompletedProcess]
 VIRSH = ["virsh", "-c", "qemu:///system"]
 
+# What virsh says when the domain does not exist or has already stopped.
+GONE = ("domain not found", "failed to get domain", "domain is not running")
+
+
+class HypervisorError(RuntimeError):
+    """virsh failed for a reason other than the domain being gone."""
+
 
 def _run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, check=check, capture_output=True, text=True)
+
+
+def _gone(result: subprocess.CompletedProcess) -> bool:
+    text = f"{result.stdout}\n{result.stderr}".lower()
+    return any(marker in text for marker in GONE)
 
 
 @dataclass(frozen=True)
@@ -67,10 +79,17 @@ class VirshHypervisor:
 
     def is_running(self, name: str) -> bool:
         result = self._run([*VIRSH, "domstate", name], check=False)
-        return result.returncode == 0 and result.stdout.strip() not in ("", "shut off", "crashed")
+        if result.returncode != 0:
+            if _gone(result):
+                return False
+            raise HypervisorError(f"virsh domstate {name}: {result.stderr.strip()}")
+        return result.stdout.strip() not in ("", "shut off", "crashed")
 
     def destroy(self, name: str) -> None:
-        self._run([*VIRSH, "destroy", name], check=False)
+        """Stop the domain. A domain that is already gone is fine; any other failure raises."""
+        result = self._run([*VIRSH, "destroy", name], check=False)
+        if result.returncode != 0 and not _gone(result):
+            raise HypervisorError(f"virsh destroy {name}: {result.stderr.strip()}")
 
     def wipe(self, slot_dir: Path) -> None:
         if slot_dir.exists():

@@ -133,7 +133,9 @@ def network() -> None:
     for old in pathlib.Path("/etc/systemd/network").glob("*"):
         old.unlink()
     pathlib.Path("/etc/systemd/network/10-runner.network").write_text(
-        "[Match]\nType=ether\n\n[Network]\nDHCP=ipv4\nIPv6AcceptRA=no\nLinkLocalAddressing=no\n"
+        "[Match]\nType=ether\n\n[Network]\nDHCP=ipv4\nIPv6AcceptRA=no\nLinkLocalAddressing=no\n\n"
+        "[DHCPv4]\n# Identify by MAC: the slot's MAC is what the host's DHCP leases are keyed on.\n"
+        "ClientIdentifier=mac\n"
     )
     pathlib.Path("/etc/sysctl.d/90-no-ipv6.conf").write_text(
         "net.ipv6.conf.all.disable_ipv6 = 1\nnet.ipv6.conf.default.disable_ipv6 = 1\n"
@@ -142,12 +144,20 @@ def network() -> None:
 
 
 def lock_down() -> None:
-    env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
+    # sudo's prerm refuses to go while root's password is locked unless told it may.
+    env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive", "SUDO_FORCE_REMOVE": "yes"}
     sh("apt-get", "purge", "-y", "openssh-server", "sudo", env=env)
     sh("apt-get", "autoremove", "-y", "--purge", env=env)
     sh("apt-get", "clean")
+    # cloud-init's default user is not needed and should not exist in a job VM.
+    if subprocess.run(["id", "debian"], capture_output=True).returncode == 0:
+        sh("userdel", "--remove", "debian")
+    pathlib.Path("/etc/sudoers.d/90-cloud-init-users").unlink(missing_ok=True)
     pathlib.Path("/etc/cloud/cloud-init.disabled").touch()
     sh("passwd", "--lock", "root")
+    # Every VM made from this image gets its own machine-id at first boot.
+    pathlib.Path("/etc/machine-id").write_text("")
+    pathlib.Path("/var/lib/dbus/machine-id").unlink(missing_ok=True)
 
 
 def main() -> None:

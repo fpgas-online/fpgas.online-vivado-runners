@@ -1,4 +1,10 @@
-"""One slot: boot a VM for one job, wait for it to end, remove every trace."""
+"""One slot: boot a VM for one job, wait for it to end, remove every trace.
+
+Outcome reasons: finished, no-job, register-timeout, wall-limit, start-error,
+jit-error, low-disk, stopped, plus
+  hypervisor-error  libvirt failed while the VM was running (counts as a failure)
+  destroy-error     the VM could not be stopped: the slot halts at once and keeps the disks
+"""
 
 from __future__ import annotations
 
@@ -13,10 +19,11 @@ from datetime import UTC, datetime
 from . import images
 from .config import Config
 from .domain_xml import DomainSpec, render
+from .hypervisor import HypervisorError
 
 log = logging.getLogger("vivado_runners.slot")
 
-FAILURES = frozenset({"no-job", "register-timeout", "start-error"})
+FAILURES = frozenset({"no-job", "register-timeout", "start-error", "hypervisor-error"})
 HALT_AFTER = 3
 JIT_BACKOFF_START = 30
 JIT_BACKOFF_MAX = 600
@@ -128,13 +135,20 @@ class Slot:
                 )
             )
             self.hv.start(domain, xml, slot_dir)
+            reason = "hypervisor-error"
             self._status("running", runner=runner, domain=domain, base=versions.base.name, vivado=versions.vivado.name)
             reason = self._wait(domain, runner, started)
         except Exception:
             log.exception("slot %d: could not start %s", self.index, domain)
         finally:
-            self.hv.destroy(domain)
-            self.hv.wipe(slot_dir)
+            try:
+                self.hv.destroy(domain)
+            except HypervisorError:
+                # The VM may still be running. Its disks stay where they are, and the slot stops.
+                log.error("ALERT slot %d: could not destroy %s; keeping %s", self.index, domain, slot_dir)
+                reason = "destroy-error"
+            else:
+                self.hv.wipe(slot_dir)
             reason = self._reap_runner(jit.id, reason)
         return done(reason, runner, versions)
 
@@ -195,6 +209,10 @@ class Slot:
             outcome = self.run_once()
             if outcome.reason == "stopped":
                 break
+            if outcome.reason == "destroy-error":
+                self._status("halted", last_reason=outcome.reason)
+                log.error("ALERT slot %d halted: a VM could not be destroyed", self.index)
+                return "halted"
             if outcome.reason == "jit-error":
                 self.sleep(backoff)
                 backoff = min(backoff * 2, JIT_BACKOFF_MAX)

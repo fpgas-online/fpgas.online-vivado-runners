@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from vivado_runners.github import GitHubError, JitRunner, Runner
-from vivado_runners.hypervisor import SlotDisks
+from vivado_runners.hypervisor import HypervisorError, SlotDisks
 
 
 class FakeClock:
@@ -79,6 +79,8 @@ class FakeHypervisor:
         self.cpus = 64
         self.memory_gib = 256.0
         self.start_error: Exception | None = None
+        self.destroy_error = False
+        self.running_error = False
         self.domains: dict[str, float] = {}  # name -> start time
         self.events: list[tuple] = []
 
@@ -97,6 +99,8 @@ class FakeHypervisor:
         self.last_xml = xml
 
     def is_running(self, name):
+        if self.running_error:
+            raise HypervisorError("virsh domstate: failed to connect")
         if name not in self.domains:
             return False
         if self.run_seconds is not None and self.clock() - self.domains[name] >= self.run_seconds:
@@ -110,6 +114,8 @@ class FakeHypervisor:
 
     def destroy(self, name):
         self.events.append(("destroy", name))
+        if self.destroy_error:
+            raise HypervisorError("virsh destroy: failed to connect")
         self.domains.pop(name, None)
 
     def wipe(self, slot_dir: Path):

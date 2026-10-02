@@ -216,3 +216,30 @@ def test_low_disk_retries_after_a_minute(env):
     s.run_once = once
     s.run_forever()
     assert env.clock.sleeps == [60, 60]
+
+
+def test_a_vm_that_cannot_be_destroyed_keeps_its_disks(env):
+    env.hv.destroy_error = True
+    out = env.make().run_once()
+    assert out.reason == "destroy-error"
+    assert ("wipe", "slot-0") not in env.hv.events
+
+
+def test_a_vm_that_cannot_be_destroyed_halts_the_slot_at_once(env):
+    env.hv.destroy_error = True
+    assert env.make().run_forever() == "halted"
+    assert len(env.gh.created) == 1
+    assert json.loads((env.cfg.status_dir / "slot-0.json").read_text())["state"] == "halted"
+
+
+def test_losing_libvirt_while_waiting_is_a_failure_and_still_cleans_up(env):
+    original = env.hv.start
+
+    def start_then_fail(name, xml, slot_dir):
+        original(name, xml, slot_dir)
+        env.hv.running_error = True
+
+    env.hv.start = start_then_fail
+    out = env.make().run_once()
+    assert out.reason == "hypervisor-error"
+    assert [e[0] for e in env.hv.events] == ["prepare", "start", "destroy", "wipe"]

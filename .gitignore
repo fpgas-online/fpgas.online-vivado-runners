@@ -1,0 +1,8 @@
+.worktrees/
+.venv/
+__pycache__/
+*.egg-info/
+dist/
+built-debs/
+debian/changelog
+tmp/

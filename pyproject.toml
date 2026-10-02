@@ -1,0 +1,33 @@
+[project]
+name = "vivado-runners"
+version = "0.1.0"
+description = "Sandboxed per-job KVM GitHub Actions runners with Vivado"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = ["PyJWT>=2.6", "cryptography>=41"]
+
+[project.scripts]
+vivado-runners = "vivado_runners.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vivado_runners"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+# The copied spec and plans are kept byte for byte; do not reformat their code blocks.
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

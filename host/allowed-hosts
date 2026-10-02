@@ -1,0 +1,9 @@
+# GitHub's self-hosted runner requirements (docs.github.com, read 2026-09-24).
+github.com
+api.github.com
+codeload.github.com
+.actions.githubusercontent.com
+objects.githubusercontent.com
+objects-origin.githubusercontent.com
+github-releases.githubusercontent.com
+release-assets.githubusercontent.com

@@ -1,0 +1,5 @@
+# Azure storage accounts GitHub uses for logs, artifacts and caches.
+# INITIAL VALUE: every Azure storage account, which is far wider than GitHub.
+# Plan 2 Task 6 replaces this line with the account names seen in proxy logs
+# (decision D-1 if they cannot be narrowed).
+\.blob\.core\.windows\.net$

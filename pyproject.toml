@@ -22,6 +22,8 @@ packages = ["src/vivado_runners"]
 [tool.ruff]
 target-version = "py311"
 line-length = 120
+# The copied spec and plans are kept byte for byte; do not reformat their code blocks.
+extend-exclude = ["docs"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF"]

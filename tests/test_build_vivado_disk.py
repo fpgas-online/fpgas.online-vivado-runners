@@ -1,6 +1,8 @@
 import importlib.util
 import pathlib
 
+import pytest
+
 SPEC = importlib.util.spec_from_file_location(
     "build_vivado_disk", pathlib.Path(__file__).parents[1] / "image" / "build_vivado_disk.py"
 )
@@ -56,9 +58,7 @@ def test_only_machine_tied_licence_files_are_reported(tmp_path):
     assert mod.machine_tied_licences(source) == [source / "Vivado/Site.LIC"]
 
 
-def test_the_build_refuses_a_tree_with_a_machine_tied_licence(tmp_path, monkeypatch, capsys):
-    import pytest
-
+def test_the_build_refuses_a_tree_with_a_machine_tied_licence(tmp_path, monkeypatch):
     source = tmp_path / "2025.2"
     (source / "Vivado").mkdir(parents=True)
     (source / "Vivado/settings64.sh").write_text("")
@@ -70,3 +70,47 @@ def test_the_build_refuses_a_tree_with_a_machine_tied_licence(tmp_path, monkeypa
     with pytest.raises(SystemExit, match="tied to a machine"):
         mod.main()
     assert list(images.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        b"INCREMENT f xilinxd 1 permanent uncounted A HOSTID=\\\n\t525400aabbcc\n",
+        b"INCREMENT f xilinxd 1 permanent uncounted A HOSTID= 525400aabbcc\n",
+        b"INCREMENT f xilinxd 1 permanent uncounted A HOSTID = 525400aabbcc\n",
+        b"INCREMENT f xilinxd 1 permanent uncounted A HOSTID=\n",
+        b'INCREMENT f xilinxd 1 permanent uncounted A HOSTID="525400aabbcc"\n',
+        b"INCREMENT f xilinxd 1 permanent uncounted A HOSTID=ID=1234\n",
+        b"INCREMENT f xilinxd 1 permanent uncounted A HOSTID=ANY,525400aabbcc\n",
+        "INCREMENT f xilinxd 1 permanent uncounted A HOSTID=525400aabbcc\n".encode("utf-16"),
+    ],
+)
+def test_awkward_but_real_node_locked_forms_are_caught(text):
+    assert mod.is_machine_tied(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        b'INCREMENT f xilinxd 1 permanent uncounted A HOSTID="ANY"\n',
+        b"increment f xilinxd 1 permanent uncounted A hostid=any\n",
+        b"0x1f 0x20 SERVER-like words in a data file, HOSTID=525400aabbcc but no licence lines\n",
+    ],
+)
+def test_generic_licences_and_non_licence_data_are_not_caught(text):
+    assert not mod.is_machine_tied(text)
+
+
+@pytest.mark.parametrize("name", ["license.dat", "Xilinx.lic.txt", "node.SLIC", "LICENSE"])
+def test_licence_files_under_other_names_are_found(tmp_path, name):
+    source = tmp_path / "2025.2"
+    source.mkdir()
+    (source / name).write_bytes(NODE_LOCKED)
+    assert mod.machine_tied_licences(source) == [source / name]
+
+
+def test_large_files_are_not_read(tmp_path):
+    source = tmp_path / "2025.2"
+    source.mkdir()
+    (source / "parts.dat").write_bytes(NODE_LOCKED + b"x" * (mod.CANDIDATE_MAX_BYTES + 1))
+    assert mod.machine_tied_licences(source) == []

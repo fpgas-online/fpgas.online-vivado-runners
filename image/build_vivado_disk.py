@@ -12,30 +12,64 @@ The disk is attached, readable, to every job's VM. So the build refuses a
 source tree that holds a licence file tied to a machine (a node-locked or
 server licence): every job could read it. The generic licences AMD ships
 inside the product (HOSTID=ANY) are fine.
+
+Scans for licence-like files with names matching *.lic*, *.dat, license*,
+*.slic (up to 1 MiB each) and judges only those that look like FlexLM licences.
 """
 
 import argparse
 import datetime
+import fnmatch
 import pathlib
 import re
 import subprocess
 import sys
 
-HOSTID = re.compile(rb"HOSTID=([^\s\\\\]+)", re.IGNORECASE)
-SERVER = re.compile(rb"^\s*(SERVER|USE_SERVER)\b", re.IGNORECASE | re.MULTILINE)
+# A FlexLM licence file has lines that start with one of these keywords.
+LICENCE_LINE = re.compile(
+    r"^\s*(INCREMENT|FEATURE|PACKAGE|UPGRADE|SERVER|VENDOR|DAEMON|USE_SERVER)\b",
+    re.I | re.M,
+)
+SERVER = re.compile(r"^\s*(SERVER|USE_SERVER)\b", re.I | re.M)
+# HOSTID, optional spaces, '=', optional spaces and backslash-newline continuations, then the value.
+HOSTID = re.compile(r"\bHOSTID\s*=\s*(?:\\\r?\n\s*)*(\"[^\"]*\"|[^\s\\]*)", re.I)
+# Names a licence file is usually given; anything bigger than this is not a licence.
+CANDIDATE_NAMES = ("*.lic*", "*.dat", "license*", "*.slic")
+CANDIDATE_MAX_BYTES = 1 << 20
 
 
-def is_machine_tied(text: bytes) -> bool:
-    """True for a FlexLM licence locked to a host ID or pointing at a licence server."""
+def _text(data: bytes) -> str:
+    """Licence text from bytes in any encoding an editor might have saved it in."""
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")) or b"\x00" in data[:200]:
+        try:
+            return data.decode("utf-16")
+        except UnicodeDecodeError:
+            return data.replace(b"\x00", b"").decode("latin-1")
+    return data.decode("latin-1")
+
+
+def is_machine_tied(data: bytes) -> bool:
+    """True for FlexLM licence text locked to a host ID or pointing at a licence server.
+    A HOSTID with no value, or any value other than ANY or DEMO, counts as locked."""
+    text = _text(data)
+    if not LICENCE_LINE.search(text):
+        return False
     if SERVER.search(text):
         return True
-    return any(value.upper() not in (b"ANY", b"DEMO") for value in HOSTID.findall(text))
+    return any(value.strip('"').upper() not in ("ANY", "DEMO") for value in HOSTID.findall(text))
+
+
+def _is_candidate(path: pathlib.Path) -> bool:
+    name = path.name.lower()
+    return any(fnmatch.fnmatch(name, pattern) for pattern in CANDIDATE_NAMES)
 
 
 def machine_tied_licences(source: pathlib.Path) -> list[pathlib.Path]:
     found = []
     for path in sorted(source.rglob("*")):
-        if path.suffix.lower() == ".lic" and path.is_file() and is_machine_tied(path.read_bytes()):
+        if not _is_candidate(path) or not path.is_file() or path.is_symlink():
+            continue
+        if path.stat().st_size <= CANDIDATE_MAX_BYTES and is_machine_tied(path.read_bytes()):
             found.append(path)
     return found
 

@@ -1,0 +1,25 @@
+#!/usr/sbin/nft -f
+# Runner VMs may reach DHCP and the egress proxy on this host, and nothing else.
+# Loaded by vivado-runners-firewall.service and re-asserted every minute.
+# Priority -10 runs before docker's and libvirt's filter chains; a drop is final.
+
+table inet vivado_runners
+delete table inet vivado_runners
+
+table inet vivado_runners {
+	chain input {
+		type filter hook input priority -10; policy accept;
+		iifname != "vrbr0" return
+		meta nfproto ipv4 udp dport 67 accept
+		ip saddr 192.168.76.0/24 ip daddr 192.168.76.1 tcp dport 3128 accept
+		limit rate 10/second log prefix "vr-drop-in: "
+		counter drop
+	}
+
+	chain forward {
+		type filter hook forward priority -10; policy accept;
+		iifname "vrbr0" limit rate 10/second log prefix "vr-drop-fwd: "
+		iifname "vrbr0" counter drop
+		oifname "vrbr0" counter drop
+	}
+}

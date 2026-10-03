@@ -12,7 +12,7 @@ override_dh_auto_test:
 # GitHub App key, and the proxy needs the bridge. Deployment enables them.
 # One call per unit name; each also picks up a .timer of the same name.
 override_dh_installsystemd:
-	dh_installsystemd --name=vivado-runners --no-enable --no-start
-	dh_installsystemd --name=vivado-runners-proxy --no-enable --no-start
-	dh_installsystemd --name=vivado-runners-firewall --no-enable --no-start
-	dh_installsystemd --name=vivado-runners-firewall-assert --no-enable --no-start
+	dh_installsystemd --name=vivado-runners --no-enable --no-start --no-stop-on-upgrade
+	dh_installsystemd --name=vivado-runners-proxy --no-enable --no-start --no-stop-on-upgrade
+	dh_installsystemd --name=vivado-runners-firewall --no-enable --no-start --no-stop-on-upgrade
+	dh_installsystemd --name=vivado-runners-firewall-assert --no-enable --no-start --no-stop-on-upgrade

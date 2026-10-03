@@ -54,6 +54,9 @@ for unit in ("vivado-runners.service", "vivado-runners-proxy.service", "vivado-r
     enabled = glob.glob(f"/etc/systemd/system/*.wants/{unit}")
     check(not enabled, f"{unit} is not enabled by the package")
 
+mask = "/etc/systemd/system/squid.service"
+check(os.path.islink(mask) and os.readlink(mask) == "/dev/null", "the distribution's squid.service is masked")
+
 sh("squid", "-k", "parse", "-f", "/etc/vivado-runners/squid.conf")
 check(True, "the installed squid configuration parses")
 print("install test passed")

@@ -1,0 +1,15 @@
+[Unit]
+Description=Run one GitHub Actions job, then power off
+After=network-online.target
+Wants=network-online.target
+SuccessAction=poweroff
+FailureAction=poweroff
+
+[Service]
+Type=exec
+ExecStart=/usr/local/sbin/vivado-runner-boot
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

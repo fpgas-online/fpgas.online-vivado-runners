@@ -1,0 +1,18 @@
+#!/usr/bin/make -f
+
+export PYBUILD_NAME=vivado-runners
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild
+
+# The unit tests run in CI (ci.yml) with uv; the package build does not repeat them.
+override_dh_auto_test:
+
+# Installed disabled and stopped: the controller needs a config file and the
+# GitHub App key, and the proxy needs the bridge. Deployment enables them.
+# One call per unit name; each also picks up a .timer of the same name.
+override_dh_installsystemd:
+	dh_installsystemd --name=vivado-runners --no-enable --no-start
+	dh_installsystemd --name=vivado-runners-proxy --no-enable --no-start
+	dh_installsystemd --name=vivado-runners-firewall --no-enable --no-start
+	dh_installsystemd --name=vivado-runners-firewall-assert --no-enable --no-start

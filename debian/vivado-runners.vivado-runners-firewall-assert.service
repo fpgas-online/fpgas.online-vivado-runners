@@ -1,0 +1,6 @@
+[Unit]
+Description=Reload the Vivado runner nftables table (another tool may have flushed it)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/nft -f /usr/share/vivado-runners/host/vivado-runners.nft

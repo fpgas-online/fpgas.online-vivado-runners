@@ -1,0 +1,10 @@
+[Unit]
+Description=Re-assert the Vivado runner nftables table every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Unit=vivado-runners-firewall-assert.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=nftables table confining Vivado runner VMs
+Before=vivado-runners.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /usr/share/vivado-runners/host/vivado-runners.nft
+ExecReload=/usr/sbin/nft -f /usr/share/vivado-runners/host/vivado-runners.nft
+ExecStop=/usr/sbin/nft delete table inet vivado_runners
+
+[Install]
+WantedBy=multi-user.target

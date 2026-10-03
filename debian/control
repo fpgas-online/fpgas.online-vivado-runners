@@ -1,0 +1,27 @@
+Source: vivado-runners
+Section: admin
+Priority: optional
+Maintainer: Tim 'mithro' Ansell <me@mith.ro>
+Build-Depends: debhelper-compat (= 13), dh-python, pybuild-plugin-pyproject,
+ python3-all, python3-hatchling
+Standards-Version: 4.6.2
+Homepage: https://github.com/fpgas-online/fpgas.online-vivado-runners
+Vcs-Git: https://github.com/fpgas-online/fpgas.online-vivado-runners.git
+Vcs-Browser: https://github.com/fpgas-online/fpgas.online-vivado-runners
+Rules-Requires-Root: no
+
+Package: vivado-runners
+Architecture: all
+Depends: ${python3:Depends}, ${misc:Depends}, python3-jwt, python3-cryptography,
+ adduser, libvirt-daemon-system, libvirt-clients, qemu-system-x86, qemu-utils,
+ xorriso, squid, nftables
+Recommends: virtinst, libguestfs-tools, squashfs-tools
+Description: sandboxed per-job KVM GitHub Actions runners with Vivado
+ A controller that keeps a fixed number of GitHub Actions runner slots. Each
+ job runs in a fresh KVM virtual machine that is destroyed afterwards. The
+ machine gets a single-use runner registration and can reach GitHub, through
+ an allowlisting proxy on the host, and nothing else.
+ .
+ The package also carries the host network policy (libvirt network, nftables
+ table, squid allowlist) and the scripts that build the VM image and the
+ read-only Vivado disk. Vivado itself is not included.

@@ -1,0 +1,61 @@
+name: Debian package
+
+# Every push to main builds the package and republishes a signed apt repository
+# on GitHub Pages. A pull request builds and install-tests, and publishes nothing.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deb-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-deb:
+    name: build-deb (trixie all)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # the version is git describe's
+
+      - name: Build
+        uses: mithro/apt-repo-action/build-deb@main
+        with:
+          suite: trixie
+          arch: all
+
+      - name: Install test
+        run: |
+          docker run --rm \
+            -v "${PWD}/built-debs:/debs:ro" -v "${PWD}/packaging:/packaging:ro" \
+            docker.io/library/debian:trixie \
+            sh -c 'apt-get update && apt-get install -y --no-install-recommends python3 && python3 /packaging/install-test.py'
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: debs-trixie-all
+          path: built-debs/*.deb
+          retention-days: 14
+
+  publish-apt:
+    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+    needs: build-deb
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: mithro/apt-repo-action/.github/workflows/publish-apt.yml@main
+    with:
+      suites: "trixie"
+      architectures: "all"
+      description: "Sandboxed per-job KVM GitHub Actions runners with Vivado"
+    secrets:
+      gpg-private-key: ${{ secrets.APT_GPG_PRIVATE_KEY }}

@@ -1,0 +1,25 @@
+[Unit]
+Description=Vivado runner controller (one KVM VM per GitHub Actions job)
+Documentation=https://github.com/fpgas-online/fpgas.online-vivado-runners
+After=network-online.target libvirtd.service vivado-runners-firewall.service vivado-runners-proxy.service
+Wants=network-online.target
+Requires=vivado-runners-firewall.service vivado-runners-proxy.service
+ConditionPathExists=/etc/vivado-runners/config.toml
+
+[Service]
+User=vivado-runners
+Group=vivado-runners
+ExecStart=/usr/bin/vivado-runners run
+Restart=on-failure
+RestartSec=300
+# Exit status 2 is a configuration this host cannot run; retrying cannot fix it.
+RestartPreventExitStatus=2
+TimeoutStopSec=90
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/vivado-runners
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

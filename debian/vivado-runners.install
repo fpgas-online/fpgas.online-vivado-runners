@@ -1,0 +1,7 @@
+host/network.xml           usr/share/vivado-runners/host
+host/vivado-runners.nft    usr/share/vivado-runners/host
+host/squid.conf            etc/vivado-runners
+host/allowed-hosts         etc/vivado-runners
+host/allowed-blob-regex    etc/vivado-runners
+image/*                    usr/share/vivado-runners/image
+debian/config.toml.example usr/share/doc/vivado-runners

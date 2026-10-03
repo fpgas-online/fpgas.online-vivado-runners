@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+# On removal only (never on upgrade): stop the controller first, which destroys its job VMs, and
+# only then the proxy and the firewall. systemd stops them in reverse dependency order.
+if [ "$1" = remove ] && [ -d /run/systemd/system ]; then
+    deb-systemd-invoke stop vivado-runners.service vivado-runners-proxy.service \
+        vivado-runners-firewall.timer vivado-runners-firewall.service >/dev/null || true
+fi
+
+#DEBHELPER#

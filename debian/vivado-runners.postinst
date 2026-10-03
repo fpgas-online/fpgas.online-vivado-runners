@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = configure ]; then
+    adduser --system --group --home /var/lib/vivado-runners --no-create-home vivado-runners
+    adduser vivado-runners libvirt
+    adduser vivado-runners libvirt-qemu
+    chown vivado-runners:libvirt-qemu /var/lib/vivado-runners /var/lib/vivado-runners/images
+    chown vivado-runners:vivado-runners /var/lib/vivado-runners/status /var/lib/vivado-runners/console
+    chmod 0750 /var/lib/vivado-runners/images
+    chmod 0755 /var/lib/vivado-runners
+    chown proxy:proxy /var/log/vivado-runners
+    # Debian's squid package starts its own squid on every address, port 3128. Ours is a
+    # separate unit bound to the runner bridge; the distribution's must never run here.
+    if [ -d /run/systemd/system ]; then
+        systemctl stop squid.service || true
+    fi
+    ln -sf /dev/null /etc/systemd/system/squid.service
+fi
+
+#DEBHELPER#

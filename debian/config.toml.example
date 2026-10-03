@@ -1,0 +1,19 @@
+# /etc/vivado-runners/config.toml
+# Nothing here names or describes the machine: host defaults to its short
+# hostname, and the NUMA layout, CPU count and memory are read from it.
+
+[github]
+org = "fpgas-online"
+app_id = 0
+installation_id = 0
+key_file = "/etc/vivado-runners/app.pem"
+runner_group = "vivado"
+
+[slots]
+count = 1
+vcpus = 8
+memory_gib = 16
+scratch_gib = 60
+wall_limit_minutes = 120
+labels = ["self-hosted", "linux", "x64", "vivado-2025.2"]
+# numa_pinning = false   # default true: on a multi-node host each VM stays on one node
